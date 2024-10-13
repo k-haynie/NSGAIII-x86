@@ -1,5 +1,10 @@
 extern printf               ; doing this manually would be nightmarish
 
+; LIFESAVERS
+; https://en.wikibooks.org/wiki/X86_Assembly/X86_Architecture
+; https://kobzol.github.io/davis/
+
+
 section .data
     ; declare a list of 4-byte values to be sorted
     list dd 34,5,29,9,41,68,78,42,98,51,1,86,80,92,95,23,16,56,72,73

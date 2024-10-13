@@ -1,1 +1,1 @@
-nasm -f elf32 nsga.s -o nsga.o && gcc -nostartfiles -m32 -o nsga nsga.o && ./nsga
+nasm -f elf32 ndom.s -o ndom.o && gcc -nostartfiles -m32 -o ndom ndom.o && ./ndom

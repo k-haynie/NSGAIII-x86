@@ -7,92 +7,101 @@ extern printf               ; doing this manually would be nightmarish
 
 section .data
     ; declare a list of n #  x-y double dword value pairs to be sorted
-    listxy dd 3,6, 7,4, 4,8, 12,1, 9,7, 8,5, 3,3, 7,2
-
-
-    
-    ; save their count as n - 1
     count dd 8
+    listxy dd 3,6,0,0,0,  7,4,0,0,0,   4,8,0,0,0,  12,1,0,0,0,    9,7,0,0,0,    8,5,0,0,0,    3,3,0,0,0,    7,2,0,0,0
+    ; save their count as n - 1
+    front dd 1
+    changed dd 0
 
     ; preserve an output format
-    fmt: db "(%d, %d)", 10, 0
+    fmt: db "(%d, %d, %d)", 10, 0
+    fmt2: db "changed: (%d)", 10, 0
+
+    fmt3: db "1 (%d) 2 (%d)", 10, 0
+    fmt4: db "(%d, %d) dominates (%d, %d) on front %d", 10, 0
 
 
 section .text
     global _start
 
-; bubble sort
+
 _start:
     mov edx, [count]                        ; initialize the count in edx
     mov edi, listxy
 
-    outer:
+    outer_nds:
         mov ecx, [count]                    ; duplicate the count in ecx
         mov esi, listxy                      ; move the list start pointer to esi
 
-        inner:
-            ; check if x1 > x2
+        inner_nds:
+            ; check if i = j, skip if so
             cmp edx, ecx
             je next                         ; if the two are equal, move on
-            
-            ;  cmp_x:
-            mov eax, [esi]                  ; x1
-            mov ebx, [edi]              ; x2
 
+            ; compare front values and ignore
+            ; if either i or j are already dominated
+            mov ebx, [front]
+            dec ebx                         ; only reconsider items with a front a step down from the new potential
+            mov eax, [esi + 8]
+            cmp eax, ebx                    
+            jnz next                        ; if the value already has a front, skip this value
+            mov eax, [edi + 8]
+            cmp eax, ebx
+            jnz next
+            
+            ;  compare x:
+            mov eax, [esi]                  ; x1
+            mov ebx, [edi]                  ; x2
             cmp eax, ebx                    ; compare eax and ebx
             jl next                         ; if eax < ebx, no swap is needed - jump ahead
 
-            cmp_y:
+            ; compare y:
             mov eax, [esi + 4]              ; y1
-            mov ebx, [edi + 4]             ; y2
-            
+            mov ebx, [edi + 4]              ; y2
             cmp eax, ebx                    ; compare eax, ebx
             jl next
 
+            ; assign the current front value and increment the # of points assigned a value
 
-            ; push dword [esi + 4]    ; push the top of the list reference
-            ; push dword [esi]
-            ; push fmt            ; push the format
-            ; call printf         ; print nicely
-            ; add esp, 12          ; increment the stack pointer
+            add dword [esi + 8], 1
+            add dword [changed], 1
 
-            mov dword [esi + 4], 100                    ; zero-out dominating solutions
-            mov dword [esi], 100
-
-            next:      
-                           ; move the list pointer to the next dword
-                
-                
-                
-                ; push edx     ; push the top of the list reference
-                ; push ecx
-                ; push fmt            ; push the format
-                ; call printf         ; print nicely
-                ; add esp, 12          ; increment the stack pointer
-                    
-                add esi, 8
+            next:
+                add esi, 20
                 dec ecx
                 cmp ecx, 0
-                jnz inner             ; repeat until ecx is met
+                jnz inner_nds               ; repeat until ecx is met
         
-        add edi, 8
-        dec edx                       ; decrement edx (outer counter)
+        add edi, 20
+        dec edx                             ; decrement edx (outer counter)
         cmp edx, 0
-        jnz outer                           ; repeat until everything is done
+        jnz outer_nds                       ; repeat until everything is done
 
+; if no value was changed in the current iteration, jump to print
+cmp dword [changed],0
+jz print_loop
 
+; reinitialize values to go back through all items
+mov edx, [count]
+mov edi, listxy
 
-mov ecx, [count]
+; reset values for the main loop
+mov eax, [front]
+inc eax
+mov dword [front], eax
+mov dword [changed], 0
+jmp outer_nds
 
 print_loop:
-    
-    push dword [edi - 4]    ; push the top of the list reference
-    push dword [edi - 8]
+    ; populate the stack with the front value, y, value, and x value
+    push dword [edi - 12]
+    push dword [edi - 16]
+    push dword [edi - 20]
     push fmt            ; push the format
     call printf         ; print nicely
 
-    add esp, 12          ; increment the stack pointer
-    sub edi, 8 
+    add esp, 16          ; increment the stack pointer
+    sub edi, 20 
     cmp edi, listxy
     jnz print_loop      ; loop if necessary
 
@@ -101,15 +110,6 @@ done_printing:          ; exit
     int 0x80
 
 
-
-
-
-
-
-
-
-
-; ;Bubble sort 10 numbers in place
 ; https://kobzol.github.io/davis/
 ; ; https://github.com/mish24/Assembly-step-by-step/blob/master/Bubble-sort.asm
 

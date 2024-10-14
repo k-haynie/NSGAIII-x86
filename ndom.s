@@ -9,9 +9,15 @@ section .data
     ; declare a list of n #  x-y double dword value pairs to be sorted
     count dd 8
     listxy dd 3,6,0,0,0,  7,4,0,0,0,   4,8,0,0,0,  12,1,0,0,0,    9,7,0,0,0,    8,5,0,0,0,    3,3,0,0,0,    7,2,0,0,0
-    ; save their count as n - 1
+
+    ; 2-dimenesional Das-Dennis reference directions, courtesy of pymoo
+    ;dasdennis dd 0,1,0,   0.08333333,0.91666667,1,   0.16666667,0.83333333,2,   0.25,0.75,3,   0.33333333,0.66666667,4,   0.41666667,0.58333333,5,   0.5,0.5,6,   0.58333333,0.41666667,7,   0.66666667,0.33333333,8,   0.75,0.25,9,   0.83333333,0.16666667,10,   0.91666667,0.08333333,11,   1,0,12
+    ; slope, id
+    dasdennis dd 100,0,   11,1,   5,2,   3,3,   2,4,   1.4,5,   1,6,   0.7142857142857143,7,   0.5,8,   0.3333333333333333,9,   0.19999999999999998,10, 0.09090909090909091,11, 0,12
+
     front dd 1
     changed dd 0
+    bestref dd 100,0
 
     ; preserve an output format
     fmt: db "(%d, %d, %d)", 10, 0
@@ -79,7 +85,7 @@ _start:
 
 ; if no value was changed in the current iteration, jump to print
 cmp dword [changed],0
-jz print_loop
+jz post_nds
 
 ; reinitialize values to go back through all items
 mov edx, [count]
@@ -91,6 +97,41 @@ inc eax
 mov dword [front], eax
 mov dword [changed], 0
 jmp outer_nds
+
+post_nds:
+    ; figure out the closest ref_dir
+    mov ecx, [count]
+    mov esi, listxy
+    mov edi, dasdennis
+
+    mov eax, [esi + 4]
+    mov edx, 0
+    div dword [esi]             ; eax now holds the slope of point p
+
+    mov edx, 12
+
+    slope_compare:
+        mov ebx, [edi]              ; slope in quesion
+        sub ebx, eax
+
+        ; get the absolute value of the slope differences
+        cmp ebx, 0
+        jg no_negate
+        neg ebx
+        
+        no_negate:
+        cmp eax, [bestref]
+        jl no_replace
+
+        mov ebx, [bestref]
+        mov dword [bestref], ebx
+        mov ebx, [bestref + 4]
+        mov dword [bestref + 4], ebx
+
+        no_replace:
+            ; todo
+
+
 
 print_loop:
     ; populate the stack with the front value, y, value, and x value

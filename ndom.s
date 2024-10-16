@@ -8,22 +8,26 @@ extern printf               ; doing this manually would be nightmarish
 section .data
     ; declare a list of n #  x-y double dword value pairs to be sorted
     count dd 8
-    listxy dd 3,6,0,0,0,  7,4,0,0,0,   4,8,0,0,0,  12,1,0,0,0,    9,7,0,0,0,    8,5,0,0,0,    3,3,0,0,0,    7,2,0,0,0
+    listxy dd 3,6,0,0,0,   4,8,0,0,0,  12,1,0,0,0,    9,7,0,0,0,    8,5,0,0,0,    3,3,0,0,0,    7,2,0,0,0,   7,4,0,0,0,  
 
     ; 2-dimenesional Das-Dennis reference directions, courtesy of pymoo
     ;dasdennis dd 0,1,0,   0.08333333,0.91666667,1,   0.16666667,0.83333333,2,   0.25,0.75,3,   0.33333333,0.66666667,4,   0.41666667,0.58333333,5,   0.5,0.5,6,   0.58333333,0.41666667,7,   0.66666667,0.33333333,8,   0.75,0.25,9,   0.83333333,0.16666667,10,   0.91666667,0.08333333,11,   1,0,12
-    ; slope, id
-    dasdennis dd 100,0,   11,1,   5,2,   3,3,   2,4,   1.4,5,   1,6,   0.7142857142857143,7,   0.5,8,   0.3333333333333333,9,   0.19999999999999998,10, 0.09090909090909091,11, 0,12
+    ; slope, id - 6 sig digits
+    dasdennis dd 100000000,0,   11000000,1,   5000000,2,   3000000,3,   2000000,4,   1400000,5,   1000000,6,   0714285,7,   0500000,8,   0333333,9,   0199999,10, 0090909,11, 0000000,12
 
+    refcount dd 12
     front dd 1
     changed dd 0
-    bestref dd 100,0
+    bestref dd 100000000,0
 
     ; preserve an output format
-    fmt: db "(%d, %d, %d)", 10, 0
-    fmt2: db "changed: (%d)", 10, 0
+    fmt: db "(%d, %d, %d, %d)", 10, 0
+    fmtd: db "changed: (%d)", 10, 0
+    fmtdd: db "dasdennis: (%d)", 10, 0
+    fmts: db "slopediv: (%d)", 10, 0
+    fmtf: db "changed: (%f)", 10, 0
 
-    fmt3: db "1 (%d) 2 (%d)", 10, 0
+    fmt3: db "1 (%f) 2 (%f)", 10, 0
     fmt4: db "(%d, %d) dominates (%d, %d) on front %d", 10, 0
 
 
@@ -102,48 +106,76 @@ post_nds:
     ; figure out the closest ref_dir
     mov ecx, [count]
     mov esi, listxy
-    mov edi, dasdennis
 
-    mov eax, [esi + 4]
-    mov edx, 0
-    div dword [esi]             ; eax now holds the slope of point p
-
-    mov edx, 12
-
-    slope_compare:
-        mov ebx, [edi]              ; slope in quesion
-        sub ebx, eax
-
-        ; get the absolute value of the slope differences
-        cmp ebx, 0
-        jg no_negate
-        neg ebx
+    outer_ref:
         
-        no_negate:
-        cmp eax, [bestref]
-        jl no_replace
+        mov edx, 0                      ; prep for div
+        mov eax, [esi + 4]              ; move y to eax
+        mov ebx, [esi]                  ; move x to ebx
 
-        mov ebx, [bestref]
-        mov dword [bestref], ebx
-        mov ebx, [bestref + 4]
-        mov dword [bestref + 4], ebx
+        div ebx                 ; eax now holds the slope of point p
 
-        no_replace:
-            ; todo
+        mov edx, [refcount]             ; move the count of reference points to edx 
 
+        mov edi, dasdennis              ; move pointer to ref_dirs
 
+        inner_ref:
+            mov ebx, [edi]              ; move the slope of the current reference point to ebx
+            sub ebx, eax                ; subtract the ref slope from the point slope
+
+            ; get the absolute value of the slope differences
+            cmp ebx, 0
+
+            jg no_negate
+            neg dword ebx
+            
+            no_negate:
+            cmp dword ebx, [bestref]          ; compare the abs(slope) with the best current reference
+
+            jl no_replace               ; if the slope is greater than the current reference, no replace (minimize slope difference)
+            
+            mov dword [bestref], ebx    ; replace the bestref value with the new abs(slope)
+            mov ebx, [edi + 4]
+            ;mov dword [bestref + 4], ebx
+            ; mov ebx, [bestref + 4]
+            mov dword [bestref + 4], ebx; replace the bestref index
+
+            no_replace:                 ; reset variables for inner loop
+                add edi, 8                  ; increment edi pointer for next ref
+                dec edx                     ; decrement edx
+
+                cmp edx, 0                  ; reset if all the refs have been cycled through
+                jnz inner_ref
+
+        mov edx, [bestref + 4]          ; move the index to edx
+        mov [esi + 12], edx         ; reset the v_ID
+        mov edi, dasdennis          ; reset 
+        mov edx, [refcount]
+
+        ; increment outer loop
+        add esi, 20
+        dec ecx
+        cmp ecx, 0
+        jz start_print
+        jmp outer_ref
+
+start_print:
+    mov edi, listxy
+    mov ecx, [count]
 
 print_loop:
     ; populate the stack with the front value, y, value, and x value
+    push dword [edi - 8]
     push dword [edi - 12]
     push dword [edi - 16]
     push dword [edi - 20]
     push fmt            ; push the format
     call printf         ; print nicely
 
-    add esp, 16          ; increment the stack pointer
-    sub edi, 20 
-    cmp edi, listxy
+    add esp, 20          ; increment the stack pointer
+    add edi, 20 
+    dec ecx
+    cmp ecx, 0
     jnz print_loop      ; loop if necessary
 
 done_printing:          ; exit

@@ -6,26 +6,30 @@ extern printf               ; doing this manually would be nightmarish
 
 
 section .data
+    ; pad of 6 0's to accommodate no floats
     ; declare a list of n #  x-y double dword value pairs to be sorted
     count dd 8
-    listxy dd 3,6,0,0,0,   4,8,0,0,0,  12,1,0,0,0,    9,7,0,0,0,    8,5,0,0,0,    3,3,0,0,0,    7,2,0,0,0,   7,4,0,0,0,  
+    listxy dd 3000000,6000000,0,0,0,   4000000,8000000,0,0,0,  1200000,1000000,0,0,0,    9000000,7000000,0,0,0,    8000000,5000000,0,0,0,    3000000,3000000,0,0,0,    7000000,2000000,0,0,0,   7000000,4000000,0,0,0,  
 
     ; 2-dimenesional Das-Dennis reference directions, courtesy of pymoo
     ;dasdennis dd 0,1,0,   0.08333333,0.91666667,1,   0.16666667,0.83333333,2,   0.25,0.75,3,   0.33333333,0.66666667,4,   0.41666667,0.58333333,5,   0.5,0.5,6,   0.58333333,0.41666667,7,   0.66666667,0.33333333,8,   0.75,0.25,9,   0.83333333,0.16666667,10,   0.91666667,0.08333333,11,   1,0,12
     ; slope, id - 6 sig digits
-    dasdennis dd 100000000,0,   11000000,1,   5000000,2,   3000000,3,   2000000,4,   1400000,5,   1000000,6,   0714285,7,   0500000,8,   0333333,9,   0199999,10, 0090909,11, 0000000,12
+    dasdennis dd 1000000000,0,  11000000,1,   5000000,2,   3000000,3,   2000000,4,   1400000,5,   1000000,6,   714258,7,   500000,8,   333333,9,   19999,10, 9090,11, 0,12
 
     refcount dd 12
     front dd 1
     changed dd 0
-    bestref dd 100000000,0
+    bestref dd 0,0
 
     ; preserve an output format
-    fmt: db "(%d, %d, %d, %d)", 10, 0
+    fmt: db "(edx %d, ecx %d, absd %d, sl %d)", 10, 0
+    fmto: db "(%d, %d, %d, %d, %d)", 10, 0
     fmtd: db "changed: (%d)", 10, 0
     fmtdd: db "dasdennis: (%d)", 10, 0
     fmts: db "slopediv: (%d)", 10, 0
     fmtf: db "changed: (%f)", 10, 0
+    fmtr: db "(br %d sl %d with %d)", 10, 0
+    fmtrd: db "replaced: (br %d with %d)", 10, 0
 
     fmt3: db "1 (%f) 2 (%f)", 10, 0
     fmt4: db "(%d, %d) dominates (%d, %d) on front %d", 10, 0
@@ -102,12 +106,20 @@ mov dword [front], eax
 mov dword [changed], 0
 jmp outer_nds
 
+
+; after the non-dominated sorting, assign closest vectors
 post_nds:
     ; figure out the closest ref_dir
     mov ecx, [count]
     mov esi, listxy
 
     outer_ref:
+
+        ; initialize the bestref with the first item's slope
+        mov eax, [dasdennis]
+        mov ebx, [dasdennis + 4]
+        mov [bestref], eax
+        mov [bestref + 4], ebx
         
         mov edx, 0                      ; prep for div
         mov eax, [esi + 4]              ; move y to eax
@@ -120,8 +132,22 @@ post_nds:
         mov edi, dasdennis              ; move pointer to ref_dirs
 
         inner_ref:
+
             mov ebx, [edi]              ; move the slope of the current reference point to ebx
             sub ebx, eax                ; subtract the ref slope from the point slope
+
+
+            push eax                ; current slope
+            push ebx                ; abs(slope) difference
+            push ecx
+            push edx
+            push fmt
+            call printf
+            pop ecx
+            pop edx
+            pop ecx
+            pop ebx
+            pop eax
 
             ; get the absolute value of the slope differences
             cmp ebx, 0
@@ -132,51 +158,71 @@ post_nds:
             no_negate:
             cmp dword ebx, [bestref]          ; compare the abs(slope) with the best current reference
 
-            jl no_replace               ; if the slope is greater than the current reference, no replace (minimize slope difference)
+            jg no_replace               ; if the slope is greater than the current reference, no replace (minimize slope difference)
             
-            mov dword [bestref], ebx    ; replace the bestref value with the new abs(slope)
-            mov ebx, [edi + 4]
-            ;mov dword [bestref + 4], ebx
-            ; mov ebx, [bestref + 4]
-            mov dword [bestref + 4], ebx; replace the bestref index
-
+            
+            push ecx
+            push edx
+            push ebx
+            push eax
+            push dword [bestref]
+            push fmtr
+            call printf
+            pop edx
+            pop edx
+            pop eax
+            pop ebx
+            pop edx
+            pop ecx
+            
+            
+            mov [bestref], ebx    ; replace the bestref value with the new abs(slope)
+            
+            mov ebx, [edi + 4]          ; move the new vector index to ebx
+            mov [esi + 12], ebx
+            mov [bestref + 4], ebx    ; set the vector index for the current point
+            ;mov dword [esi + 12], [bestref]
+            
+            ;mov ebx, [bestref + 4]
+            ;mov dword [bestref + 4], ebx; replace the bestref index
             no_replace:                 ; reset variables for inner loop
+
                 add edi, 8                  ; increment edi pointer for next ref
                 dec edx                     ; decrement edx
 
                 cmp edx, 0                  ; reset if all the refs have been cycled through
                 jnz inner_ref
 
-        mov edx, [bestref + 4]          ; move the index to edx
-        mov [esi + 12], edx         ; reset the v_ID
+        ; mov edx, [bestref + 4]          ; move the index to edx
+        ; mov [esi + 12], edx         ; reset the v_ID
         mov edi, dasdennis          ; reset 
         mov edx, [refcount]
 
         ; increment outer loop
         add esi, 20
         dec ecx
-        cmp ecx, 0
-        jz start_print
-        jmp outer_ref
+        ; cmp ecx, 0
+        jnz outer_ref
 
-start_print:
-    mov edi, listxy
-    mov ecx, [count]
+mov edi, listxy
+mov ebx, [count] ; for whatever reason, ecx was overwritten
 
 print_loop:
     ; populate the stack with the front value, y, value, and x value
-    push dword [edi - 8]
-    push dword [edi - 12]
-    push dword [edi - 16]
-    push dword [edi - 20]
-    push fmt            ; push the format
+    push dword [edi + 16]
+    push dword [edi + 12]
+    push dword [edi + 8]
+    push dword [edi + 4]
+    push dword [edi]
+    push fmto            ; push the format
     call printf         ; print nicely
 
-    add esp, 20          ; increment the stack pointer
+    add esp, 24          ; increment the stack pointer
     add edi, 20 
-    dec ecx
-    cmp ecx, 0
-    jnz print_loop      ; loop if necessary
+    
+    sub ebx, 1
+    cmp ebx, 0
+    jnz print_loop       ; loop if necessary
 
 done_printing:          ; exit
     mov eax,1

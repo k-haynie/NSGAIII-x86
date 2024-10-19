@@ -9,11 +9,11 @@ section .data
     ; pad of 6 0's to accommodate no floats
     ; declare a list of n #  x-y double dword value pairs to be sorted
     count dd 8
-    listxy dd 3000000,6000000,0,0,0,   4000000,8000000,0,0,0,  1200000,1000000,0,0,0,    9000000,7000000,0,0,0,    8000000,5000000,0,0,0,    3000000,3000000,0,0,0,    7000000,2000000,0,0,0,   7000000,4000000,0,0,0,  
+    listxy dd 3,6,0,0,0,   4,8,0,0,0,  12,1,0,0,0,    9,7,0,0,0,    8,5,0,0,0,    3,3,0,0,0,    7,2,0,0,0,   7,4,0,0,0,  
 
     ; 2-dimenesional Das-Dennis reference directions, courtesy of pymoo
     ;dasdennis dd 0,1,0,   0.08333333,0.91666667,1,   0.16666667,0.83333333,2,   0.25,0.75,3,   0.33333333,0.66666667,4,   0.41666667,0.58333333,5,   0.5,0.5,6,   0.58333333,0.41666667,7,   0.66666667,0.33333333,8,   0.75,0.25,9,   0.83333333,0.16666667,10,   0.91666667,0.08333333,11,   1,0,12
-    ; slope, id - 6 sig digits
+    ; slope, id - 6 sf
     dasdennis dd 1000000000,0,  11000000,1,   5000000,2,   3000000,3,   2000000,4,   1400000,5,   1000000,6,   714258,7,   500000,8,   333333,9,   19999,10, 9090,11, 0,12
 
     refcount dd 12
@@ -120,34 +120,25 @@ post_nds:
         mov ebx, [dasdennis + 4]
         mov [bestref], eax
         mov [bestref + 4], ebx
-        
-        mov edx, 0                      ; prep for div
-        mov eax, [esi + 4]              ; move y to eax
-        mov ebx, [esi]                  ; move x to ebx
 
-        div ebx                 ; eax now holds the slope of point p
+        mov edx, 0                          ; prep for mult
+        mov eax, [esi + 4]                  ; move y to eax
+        push ecx
+        mov ecx, 1000000
+        mul ecx                             ; multiply y by 1000000 to evaluate pseudo-fp
+        pop ecx                             ; restore ecx
 
+        mov edx, 0                          ; prep for div
+        mov ebx, [esi]                      ; move x to ebx
+
+        div ebx                             ; eax now holds the slope of point p
         mov edx, [refcount]             ; move the count of reference points to edx 
-
         mov edi, dasdennis              ; move pointer to ref_dirs
 
         inner_ref:
 
             mov ebx, [edi]              ; move the slope of the current reference point to ebx
             sub ebx, eax                ; subtract the ref slope from the point slope
-
-
-            push eax                ; current slope
-            push ebx                ; abs(slope) difference
-            push ecx
-            push edx
-            push fmt
-            call printf
-            pop ecx
-            pop edx
-            pop ecx
-            pop ebx
-            pop eax
 
             ; get the absolute value of the slope differences
             cmp ebx, 0
@@ -159,53 +150,30 @@ post_nds:
             cmp dword ebx, [bestref]          ; compare the abs(slope) with the best current reference
 
             jg no_replace               ; if the slope is greater than the current reference, no replace (minimize slope difference)
-            
-            
-            push ecx
-            push edx
-            push ebx
-            push eax
-            push dword [bestref]
-            push fmtr
-            call printf
-            pop edx
-            pop edx
-            pop eax
-            pop ebx
-            pop edx
-            pop ecx
-            
-            
+                        
             mov [bestref], ebx    ; replace the bestref value with the new abs(slope)
             
             mov ebx, [edi + 4]          ; move the new vector index to ebx
             mov [esi + 12], ebx
             mov [bestref + 4], ebx    ; set the vector index for the current point
-            ;mov dword [esi + 12], [bestref]
-            
-            ;mov ebx, [bestref + 4]
-            ;mov dword [bestref + 4], ebx; replace the bestref index
-            no_replace:                 ; reset variables for inner loop
 
+            no_replace:                 ; reset variables for inner loop
                 add edi, 8                  ; increment edi pointer for next ref
                 dec edx                     ; decrement edx
 
                 cmp edx, 0                  ; reset if all the refs have been cycled through
                 jnz inner_ref
 
-        ; mov edx, [bestref + 4]          ; move the index to edx
-        ; mov [esi + 12], edx         ; reset the v_ID
         mov edi, dasdennis          ; reset 
         mov edx, [refcount]
 
         ; increment outer loop
         add esi, 20
         dec ecx
-        ; cmp ecx, 0
         jnz outer_ref
 
 mov edi, listxy
-mov ebx, [count] ; for whatever reason, ecx was overwritten
+mov ebx, [count]
 
 print_loop:
     ; populate the stack with the front value, y, value, and x value

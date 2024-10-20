@@ -1,20 +1,27 @@
 extern printf               ; doing this manually would be nightmarish
+extern rand
+extern srand
 
 ; LIFESAVERS
 ; https://en.wikibooks.org/wiki/X86_Assembly/X86_Architecture
 ; https://kobzol.github.io/davis/
+; https://stats.stackexchange.com/questions/581426/how-pairs-of-actual-parents-are-formed-from-the-mating-pool-in-nsga-ii
 
 
 section .data
     ; pad of 6 0's to accommodate no floats
     ; declare a list of n #  x-y double dword value pairs to be sorted
     count dd 8
-    listxy dd 3,6,0,0,0,   4,8,0,0,0,  12,1,0,0,0,    9,7,0,0,0,    8,5,0,0,0,    3,3,0,0,0,    7,2,0,0,0,   7,4,0,0,0,  
+    listxy dd 3,6,0,0,0,   4,8,0,0,0,  12,1,0,0,0,    9,7,0,0,0,    8,5,0,0,0,    3,3,0,0,0,    7,2,0,0,0,   7,4,0,0,0,
+    listcxy dd 0,0,0,0,0,   0,0,0,0,0,  0,0,0,0,0,    0,0,0,0,0,    0,0,0,0,0,    0,0,0,0,0,    0,0,0,0,0,   0,0,0,0,0,  
+
+    ; the last negative one means non-initialized
+    parents dd 0,0,0,0,-1,    0,0,0,0,-1
 
     ; 2-dimenesional Das-Dennis reference directions, courtesy of pymoo
     ;dasdennis dd 0,1,0,   0.08333333,0.91666667,1,   0.16666667,0.83333333,2,   0.25,0.75,3,   0.33333333,0.66666667,4,   0.41666667,0.58333333,5,   0.5,0.5,6,   0.58333333,0.41666667,7,   0.66666667,0.33333333,8,   0.75,0.25,9,   0.83333333,0.16666667,10,   0.91666667,0.08333333,11,   1,0,12
-    ; slope, id - 6 sf
-    dasdennis dd 1000000000,0,  11000000,1,   5000000,2,   3000000,3,   2000000,4,   1400000,5,   1000000,6,   714258,7,   500000,8,   333333,9,   19999,10, 9090,11, 0,12
+    ; slope, id, appearance_in_gen - 6 sf
+    dasdennis dd 1000000000,0,0,  11000000,1,0,   5000000,2,0,   3000000,3,0,   2000000,4,0,   1400000,5,0,   1000000,6,0,   714258,7,0,   500000,8,0,   333333,9,0,   19999,10,0, 9090,11,0, 0,12,0
 
     refcount dd 12
     front dd 1
@@ -24,11 +31,12 @@ section .data
     ; preserve an output format
     fmt: db "(edx %d, ecx %d, absd %d, sl %d)", 10, 0
     fmto: db "(%d, %d, %d, %d, %d)", 10, 0
-    fmtd: db "changed: (%d)", 10, 0
+    fmtd: db "Pareto front comparison: (%d %d)", 10, 0
     fmtdd: db "dasdennis: (%d)", 10, 0
     fmts: db "slopediv: (%d)", 10, 0
-    fmtf: db "changed: (%f)", 10, 0
-    fmtr: db "(br %d sl %d with %d)", 10, 0
+    fmttie: db "tie, (%d %d)", 10 , 0
+    ; fmtd: db "changed: (%d %d)", 10, 0
+    fmtr: db "(%d %d %d)", 10, 0
     fmtrd: db "replaced: (br %d with %d)", 10, 0
 
     fmt3: db "1 (%f) 2 (%f)", 10, 0
@@ -40,6 +48,11 @@ section .text
 
 
 _start:
+    ; initialize the randomness generator
+    rdtsc 
+    push eax
+    call srand
+
     mov edx, [count]                        ; initialize the count in edx
     mov edi, listxy
 
@@ -158,7 +171,7 @@ post_nds:
             mov [bestref + 4], ebx    ; set the vector index for the current point
 
             no_replace:                 ; reset variables for inner loop
-                add edi, 8                  ; increment edi pointer for next ref
+                add edi, 12                  ; increment edi pointer for next ref
                 dec edx                     ; decrement edx
 
                 cmp edx, 0                  ; reset if all the refs have been cycled through
@@ -171,6 +184,182 @@ post_nds:
         add esi, 20
         dec ecx
         jnz outer_ref
+
+; initialize the randomness generator
+rdtsc 
+push eax
+call srand
+
+
+; initialize  ebx with a pointer to the parent array 
+mov ebx, parents            
+
+; initialize parent
+; order by smallest pareto front, then if tie, by least represented vector ID
+binary_tournament:
+    ; choose p1-1
+    ; choose p1-2
+    ; decide
+
+    ; to choose a p1
+    ; randomly select a number modulo count
+    ; multiply that number by 4
+    ; add number to listxy base ptr to get ptr to current exp var
+    ; push onto the stack
+    ; repeat, but check and make sure the pointer is different otherwise regen
+
+    call rand               ; rand value in eax
+    mov edx, 0              ; clear edx
+    div dword [count]    ; populate edx with modulo value
+
+    mov eax, edx            ; move the modulo to eax
+    mov edx, 0            ; zero out edx
+    mov ecx, 20
+    mul ecx                 ; store the modified pointer in eax
+
+    ; mov eax, edx            ; move the random point ID to eax
+    mov esi, listxy
+    add esi, eax             ; increment the base ptr by the modulo amount
+    push dword eax           ; store the offset in the stack
+
+parent_two:
+    
+    call rand               ; rand value in eax
+    mov edx, 0              ; clear edx
+    div dword [count]       ; populate edx with modulo value
+
+    mov eax, edx            ; move the modulo to eax
+    mov edx, 0            ; zero out edx
+    mov ecx, 20
+    mul ecx                 ; store the modified pointer in eax
+    cmp eax, [esp]          ; compare the offsets
+    jz parent_two           ; if the same parent was retrieved, try again
+
+    ; mov eax, edx            ; move the random point ID to eax
+    mov esi, listxy
+    add esi, eax             ; increment the base ptr by the modulo amount
+    ; push dword eax           ; push to the stack
+
+    mov edi, listxy
+    add edi, [esp]           ; now edi and esi point to random points
+
+
+    ; compare with pareto fronts
+    mov eax, [esi + 8]
+    cmp dword [edi + 8], eax
+    jg esi_select
+    jl edi_select
+    jmp tie
+    ; compare 
+
+esi_select:
+    push dword [esi + 8]
+    push dword [edi + 8]
+    push fmtd
+    call printf
+    pop eax
+    pop eax
+    pop eax
+
+    ; copy the esi-point to parent one or two
+    mov eax, [esi]
+    mov dword [ebx], eax
+    mov eax, [esi + 4]
+    mov dword [ebx + 4], eax
+    mov eax, [esi + 8]
+    mov dword [ebx + 8], eax
+    mov eax, [esi + 12]
+    mov dword [ebx + 12], eax
+    mov eax, [esi + 16]
+    mov dword [ebx + 16], eax
+
+    ; repeat the binary tournament if just one parent has been selected
+    
+    add ebx, 20
+    cmp ebx, parents + 20                    
+    jz binary_tournament
+    jmp continue
+
+edi_select:
+    push dword [esi + 8]
+    push dword [edi + 8]
+    push fmtd
+    call printf
+    pop eax
+    pop eax
+    pop eax
+
+    ; copy the edi-point to parent one or two
+    mov eax, [edi]
+    mov dword [ebx], eax
+    mov eax, [edi + 4]
+    mov dword [ebx + 4], eax
+    mov eax, [edi + 8]
+    mov dword [ebx + 8], eax
+    mov eax, [edi + 12]
+    mov dword [ebx + 12], eax
+    mov eax, [edi + 16]
+    mov dword [ebx + 16], eax
+
+    ; repeat the binary tournament if just one parent has been selected
+    add ebx, 20
+    cmp ebx, parents + 20
+    jz binary_tournament
+    jmp continue
+
+tie:
+    push dword [esi + 8]
+    push dword [edi + 8]
+    push fmttie
+    call printf
+    pop eax
+    pop eax
+    pop eax
+
+continue:
+
+
+
+
+    push dword [parents + 16]
+    push dword [parents + 12]
+    push dword [parents + 8]
+    push dword [parents + 4]
+    push dword [parents]
+    push fmto
+    call printf
+    pop eax
+    pop eax
+    pop eax
+    pop ebx
+    pop ebx
+    pop eax
+
+    push dword [parents + 36]
+    push dword [parents + 32]
+    push dword [parents + 28]
+    push dword [parents + 24]
+    push dword [parents + 20]
+    push fmto
+    call printf
+    pop eax
+    pop eax
+    pop eax
+    pop ebx
+    pop ebx
+    pop eax
+
+    ; compare pareto
+    ; compare represented vectors
+
+    ; choose p2-1
+    ; choose p2-2
+    ; decide
+
+    ; crossover
+
+    ; mutate
+
 
 mov edi, listxy
 mov ebx, [count]
@@ -194,6 +383,7 @@ print_loop:
 
 done_printing:          ; exit
     mov eax,1
+    xor ebx, ebx
     int 0x80
 
 

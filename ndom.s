@@ -308,18 +308,52 @@ edi_select:
     jmp continue
 
 tie:
-    push dword [esi + 8]
-    push dword [edi + 8]
-    push fmttie
-    call printf
-    pop eax
-    pop eax
-    pop eax
+    ; save the pointers to the randomly selected items
+    push dword edi                    
+    push dword esi
+
+    ; save the indices of the vectors in question
+    push dword [edi + 12]
+    push dword [esi + 12]
+
+    ; print verification
+    ; push fmttie
+    ; call printf
+    ; pop eax
+
+
+    mov esi, dasdennis          ; save pointer to vector array
+    pop eax                     ; move the index of esi to eax
+    mov ecx, 12                 ; adjust the pointer to the reference vector of the proper ID
+    mul ecx
+    add esi, eax
+    mov eax, [esi + 8]          ; load the frequency of value in eax
+    mov edx, eax                ; replace the top stack value with the frequency of esi
+
+
+    mov esi, dasdennis          ; save pointer to vector array
+    pop eax                     ; move the index of edi to eax
+    push edx                    ; push esi freq                 
+    mov ecx, 12                 ; adjust the pointer to the reference vector of the proper ID
+    mul ecx
+    add esi, eax
+    mov eax, [esi + 8]          ; load the frequency of value in eax
+    push eax                    ; push the frequency of edi
+
+    ; print verification
+    ; push fmttie
+    ; call printf
+    ; pop eax
+
+    pop eax                     ; frequency of use for esi's vector
+    pop ecx                     ; frequency of use for edi's vector
+    pop esi
+    pop edi
+    cmp eax, ecx
+    jg edi_select               ; esi's vector is more common = use edi
+    jmp esi_select              ; otherwise (or if a tie) = use esi
 
 continue:
-
-
-
 
     push dword [parents + 16]
     push dword [parents + 12]

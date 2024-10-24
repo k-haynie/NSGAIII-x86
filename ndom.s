@@ -12,11 +12,13 @@ section .data
     ; pad of 6 0's to accommodate no floats
     ; declare a list of n #  x-y double dword value pairs to be sorted
     count dd 8
+    childcount dd 8
     listxy dd 3,6,0,0,0,   4,8,0,0,0,  12,1,0,0,0,    9,7,0,0,0,    8,5,0,0,0,    3,3,0,0,0,    7,2,0,0,0,   7,4,0,0,0,
     listcxy dd 0,0,0,0,0,   0,0,0,0,0,  0,0,0,0,0,    0,0,0,0,0,    0,0,0,0,0,    0,0,0,0,0,    0,0,0,0,0,   0,0,0,0,0,  
 
     ; the last negative one means non-initialized
     parents dd 0,0,0,0,-1,    0,0,0,0,-1
+    children dd 0,0,0,0,-1,    0,0,0,0,-1
 
     ; 2-dimenesional Das-Dennis reference directions, courtesy of pymoo
     ;dasdennis dd 0,1,0,   0.08333333,0.91666667,1,   0.16666667,0.83333333,2,   0.25,0.75,3,   0.33333333,0.66666667,4,   0.41666667,0.58333333,5,   0.5,0.5,6,   0.58333333,0.41666667,7,   0.66666667,0.33333333,8,   0.75,0.25,9,   0.83333333,0.16666667,10,   0.91666667,0.08333333,11,   1,0,12
@@ -27,19 +29,21 @@ section .data
     front dd 1
     changed dd 0
     bestref dd 0,0
+    m_rate dd 10
 
     ; preserve an output format
-    fmt: db "(edx %d, ecx %d, absd %d, sl %d)", 10, 0
+    fmt: db "(%b %b %b %b %b %b)", 10, 0
     fmto: db "(%d, %d, %d, %d, %d)", 10, 0
     fmtd: db "Pareto front comparison: (%d %d)", 10, 0
     fmtdd: db "dasdennis: (%d)", 10, 0
     fmts: db "slopediv: (%d)", 10, 0
     fmttie: db "tie, (%d %d)", 10 , 0
     ; fmtd: db "changed: (%d %d)", 10, 0
-    fmtr: db "(%d %d %d)", 10, 0
+    fmtr: db "(%d %d %d %d)", 10, 0
     fmtrd: db "replaced: (br %d with %d)", 10, 0
+    fmtb: db "(modified: %b original: %b mask: %b)", 10, 0
 
-    fmt3: db "1 (%f) 2 (%f)", 10, 0
+    fmt3: db "1 (%b) 2 (%b)", 10, 0
     fmt4: db "(%d, %d) dominates (%d, %d) on front %d", 10, 0
 
 
@@ -197,16 +201,6 @@ mov ebx, parents
 ; initialize parent
 ; order by smallest pareto front, then if tie, by least represented vector ID
 binary_tournament:
-    ; choose p1-1
-    ; choose p1-2
-    ; decide
-
-    ; to choose a p1
-    ; randomly select a number modulo count
-    ; multiply that number by 4
-    ; add number to listxy base ptr to get ptr to current exp var
-    ; push onto the stack
-    ; repeat, but check and make sure the pointer is different otherwise regen
 
     call rand               ; rand value in eax
     mov edx, 0              ; clear edx
@@ -278,7 +272,7 @@ esi_select:
     add ebx, 20
     cmp ebx, parents + 20                    
     jz binary_tournament
-    jmp continue
+    jmp crossover
 
 edi_select:
     push dword [esi + 8]
@@ -305,7 +299,7 @@ edi_select:
     add ebx, 20
     cmp ebx, parents + 20
     jz binary_tournament
-    jmp continue
+    jmp crossover
 
 tie:
     ; save the pointers to the randomly selected items
@@ -315,12 +309,6 @@ tie:
     ; save the indices of the vectors in question
     push dword [edi + 12]
     push dword [esi + 12]
-
-    ; print verification
-    ; push fmttie
-    ; call printf
-    ; pop eax
-
 
     mov esi, dasdennis          ; save pointer to vector array
     pop eax                     ; move the index of esi to eax
@@ -340,11 +328,6 @@ tie:
     mov eax, [esi + 8]          ; load the frequency of value in eax
     push eax                    ; push the frequency of edi
 
-    ; print verification
-    ; push fmttie
-    ; call printf
-    ; pop eax
-
     pop eax                     ; frequency of use for esi's vector
     pop ecx                     ; frequency of use for edi's vector
     pop esi
@@ -353,12 +336,131 @@ tie:
     jl edi_select               ; esi's vector is more common = use edi
     jmp esi_select              ; otherwise (or if a tie) = use esi
 
+crossover:
+    call rand               ; rand value in eax
+    mov edx, 0              ; clear edx
+
+    ; I'm only using the bottom 8 bytes here because that is within reasonable scope
+    ; for typical design points
+    mov ecx, 8
+    div ecx                   ; populate edx with modulo value
+
+    mov ecx, edx
+    mov eax, 255
+    cmp ecx, 0
+    jz mask_two
+
+mask_one:
+    shr eax, 1
+    loop mask_one
+
+mask_two:
+    mov edx, eax            ; edx has one of the valuese
+    xor eax, 255            ; eax has the other mask
+
+    mov ecx, [parents]      ; move x1 to ecx
+    mov edi, [parents + 20] ; move x2 to edi
+
+    and ecx, edx
+    and edi, eax
+    or ecx, edi
+    mov [children], ecx
+
+
+    mov ecx, [parents + 4]      ; move y1 to ecx
+    mov edi, [parents + 24]     ; move y2 to edi
+
+    and ecx, edx
+    and edi, eax
+    or ecx, edi
+    mov [children + 4], ecx
+
+
+    mov ecx, [parents + 20]     ; move x2 to ecx
+    mov edi, [parents]          ; move x1 to edi
+
+    and ecx, edx
+    and edi, eax
+    or ecx, edi
+    mov [children + 20], ecx
+
+
+    mov ecx, [parents + 24]     ; move y2 to ecx
+    mov edi, [parents + 4]      ; move y1 to edi
+
+    and ecx, edx
+    and edi, eax
+    or ecx, edi
+    mov [children + 24], ecx
+
+    mov esi, children           ; assign children pointer to esi
+
+mutation:
+    call rand               ; rand value in eax
+    mov edx, 0              ; clear edx
+    mov ecx, 100
+    div ecx                 ; populate edx with modulo value
+    cmp edx, [m_rate]       ; compare with the mutation rate
+    jg print_res
+
+    call rand
+    mov edx, 0
+    mov ecx, 8
+    div ecx                 ; edx now holds a num in range 0-7
+    mov ecx, edx            ; move to ecx
+    
+    mov eax, 128            ; set the default mask to 10000000
+    cmp ecx, 0
+    jz no_mut_shr
+
+; shift the bitmask over a random # of times
+mut_shr:
+    shr eax, 1
+    loop mut_shr
+
+no_mut_shr:
+    mov ecx, eax
+
+    mov eax, [esi]              ; move xm to ecx
+    xor eax, ecx                ; flip the random bit
+    mov [esi], eax
+
+    add esi, 4                  ; bump pointer up to the y-value of child m
+
+    mov eax, [esi + 4]          ; move ym to ecx
+    xor eax, ecx                ; flip the random bit
+    mov dword [esi + 4], eax
+
+    mov eax, children
+    add eax, 4
+
+    cmp eax, esi
+    jz c2_mut
+    jmp population_add
+    
+c2_mut:
+    add esi, 16                 ; make esi point to child 2
+    jmp mutation                ; go through the mutation process again
+
+population_add:
+
+print_res:
+    push dword [children + 24]
+    push dword [children + 20]
+    push dword [children + 4]
+    push dword [children]
+    push fmtr
+    call printf
+    add esp, 20
+    
+
 continue:
 
     push dword [parents + 16]
     push dword [parents + 12]
     push dword [parents + 8]
     push dword [parents + 4]
+
     push dword [parents]
     push fmto
     call printf

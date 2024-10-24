@@ -29,22 +29,24 @@ section .data
     front dd 1
     changed dd 0
     bestref dd 0,0
-    m_rate dd 10
+    m_rate dd 1
 
     ; preserve an output format
     fmt: db "(%b %b %b %b %b %b)", 10, 0
-    fmto: db "(%d, %d, %d, %d, %d)", 10, 0
+    fmto: db "(%d, %d)", 10, 0
     fmtd: db "Pareto front comparison: (%d %d)", 10, 0
     fmtdd: db "dasdennis: (%d)", 10, 0
-    fmts: db "slopediv: (%d)", 10, 0
+    fmts: db "(%d)", 10, 0
     fmttie: db "tie, (%d %d)", 10 , 0
     ; fmtd: db "changed: (%d %d)", 10, 0
     fmtr: db "(%d %d %d %d)", 10, 0
-    fmtrd: db "replaced: (br %d with %d)", 10, 0
+    fmtrd: db "(%d)", 10, 0
     fmtb: db "(modified: %b original: %b mask: %b)", 10, 0
 
     fmt3: db "1 (%b) 2 (%b)", 10, 0
     fmt4: db "(%d, %d) dominates (%d, %d) on front %d", 10, 0
+    line: db "------------", 10, 0
+    fmtcmp: db "(%d, %d) crossed to (%d, %d)"
 
 
 section .text
@@ -193,15 +195,17 @@ post_nds:
 rdtsc 
 push eax
 call srand
-
+add esp, 4
 
 ; initialize  ebx with a pointer to the parent array 
-mov ebx, parents            
+mov ebx, parents          
+
+push dword [count]              ; push the count of children to the stack
+push dword listcxy
 
 ; initialize parent
 ; order by smallest pareto front, then if tie, by least represented vector ID
 binary_tournament:
-
     call rand               ; rand value in eax
     mov edx, 0              ; clear edx
     div dword [count]    ; populate edx with modulo value
@@ -237,6 +241,7 @@ parent_two:
     mov edi, listxy
     add edi, [esp]           ; now edi and esi point to random points
 
+    pop eax                  ; clear the stack from parent 1
 
     ; compare with pareto fronts
     mov eax, [esi + 8]
@@ -337,6 +342,7 @@ tie:
     jmp esi_select              ; otherwise (or if a tie) = use esi
 
 crossover:
+    
     call rand               ; rand value in eax
     mov edx, 0              ; clear edx
 
@@ -366,7 +372,6 @@ mask_two:
     or ecx, edi
     mov [children], ecx
 
-
     mov ecx, [parents + 4]      ; move y1 to ecx
     mov edi, [parents + 24]     ; move y2 to edi
 
@@ -375,7 +380,6 @@ mask_two:
     or ecx, edi
     mov [children + 4], ecx
 
-
     mov ecx, [parents + 20]     ; move x2 to ecx
     mov edi, [parents]          ; move x1 to edi
 
@@ -383,7 +387,6 @@ mask_two:
     and edi, eax
     or ecx, edi
     mov [children + 20], ecx
-
 
     mov ecx, [parents + 24]     ; move y2 to ecx
     mov edi, [parents + 4]      ; move y1 to edi
@@ -401,7 +404,7 @@ mutation:
     mov ecx, 100
     div ecx                 ; populate edx with modulo value
     cmp edx, [m_rate]       ; compare with the mutation rate
-    jg print_res
+    jg population_add
 
     call rand
     mov edx, 0
@@ -443,58 +446,73 @@ c2_mut:
     jmp mutation                ; go through the mutation process again
 
 population_add:
-
-print_res:
-    push dword [children + 24]
-    push dword [children + 20]
-    push dword [children + 4]
-    push dword [children]
-    push fmtr
+    pop esi
+    push fmto
     call printf
-    add esp, 20
+    pop edx                     ; the pointer to the child point array
+    pop edx                     ; the count of elements
+
+    ; move all the points over to the child array
+    mov ecx, [children]
+    mov [esi], ecx
+    mov ecx, [children + 4]
+    mov [esi + 4], ecx
+    mov ecx, [children + 20]
+    mov [esi + 20], ecx
+    mov ecx, [children + 24]
+    mov [esi + 24], ecx
+
+    sub edx, 2                  ; subtract 2 from the count of children
+    cmp edx, 0
+    jz continue
+
+    push edx
+    add esi, 40                 ; point to the next child point two points over
+    push esi
+
+    mov ebx, parents
+
+    ; zero out the parent values
+    mov dword [parents], 0
+    mov dword [parents + 4], 0
+    mov dword [parents + 8], 0
+    mov dword [parents + 12], 0
+    mov dword [parents + 16], -1
+
+    mov dword [parents + 20], 0
+    mov dword [parents + 24], 0
+    mov dword [parents + 28], 0
+    mov dword [parents + 32], 0
+    mov dword [parents + 36], -1
+
+    jmp binary_tournament
     
 
 continue:
 
-    push dword [parents + 16]
-    push dword [parents + 12]
-    push dword [parents + 8]
-    push dword [parents + 4]
+mov edi, listcxy
+mov ebx, [count]
 
-    push dword [parents]
-    push fmto
-    call printf
-    pop eax
-    pop eax
-    pop eax
-    pop ebx
-    pop ebx
-    pop eax
+print_loop_c:
+    ; populate the stack with the front value, y, value, and x value
+    push dword [edi + 16]
+    push dword [edi + 12]
+    push dword [edi + 8]
+    push dword [edi + 4]
+    push dword [edi]
+    push fmto            ; push the format
+    call printf         ; print nicely
 
-    push dword [parents + 36]
-    push dword [parents + 32]
-    push dword [parents + 28]
-    push dword [parents + 24]
-    push dword [parents + 20]
-    push fmto
-    call printf
-    pop eax
-    pop eax
-    pop eax
-    pop ebx
-    pop ebx
-    pop eax
+    add esp, 24          ; increment the stack pointer
+    add edi, 20 
+    
+    sub ebx, 1
+    cmp ebx, 0
+    jnz print_loop_c       ; loop if necessary
 
-    ; compare pareto
-    ; compare represented vectors
-
-    ; choose p2-1
-    ; choose p2-2
-    ; decide
-
-    ; crossover
-
-    ; mutate
+push line
+call printf
+add esp, 4
 
 
 mov edi, listxy

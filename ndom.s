@@ -33,7 +33,7 @@ section .data
 
     ; preserve an output format
     fmt: db "(%b %b %b %b %b %b)", 10, 0
-    fmto: db "(%d, %d)", 10, 0
+    fmto: db "(%d, %d, %d, %d, %d)", 10, 0
     fmtd: db "Pareto front comparison: (%d %d)", 10, 0
     fmtdd: db "dasdennis: (%d)", 10, 0
     fmts: db "(%d)", 10, 0
@@ -489,8 +489,177 @@ population_add:
     
 
 continue:
+    ; reset all the parent weightings
+    mov ecx, [count]
+    mov edi, listxy
+    mov dword [front], 1
+    mov dword [changed], 0
 
-mov edi, listcxy
+clear_parent:
+    mov dword [edi + 8], 0
+    mov dword [edi + 12], 0
+    mov dword [edi + 16], 0
+    add edi, 20
+    loop clear_parent
+
+    mov edx, [count]                        ; initialize the count in edx
+    shl edx, 1                              ; double the count since we'll be working with both parents AND children here
+    mov edi, listxy
+
+outer_nds_all:
+    mov ecx, [count]                    ; duplicate the count in ecx
+    shl ecx, 1 
+    mov esi, listxy                      ; move the list start pointer to esi
+
+    inner_nds_all:
+        ; check if i = j, skip if so
+        cmp edx, ecx
+        je next_all                         ; if the two are equal, move on
+
+        ; compare front values and ignore
+        ; if either i or j are already dominated
+        mov ebx, [front]
+        dec ebx                         ; only reconsider items with a front a step down from the new potential
+        mov eax, [esi + 8]
+        cmp eax, ebx                    
+        jnz next_all                        ; if the value already has a front, skip this value
+        mov eax, [edi + 8]
+        cmp eax, ebx
+        jnz next_all
+        
+        ;  compare x:
+        mov eax, [esi]                  ; x1
+        mov ebx, [edi]                  ; x2
+        cmp eax, ebx                    ; compare eax and ebx
+        jl next_all                         ; if eax < ebx, no swap is needed - jump ahead
+
+        ; compare y:
+        mov eax, [esi + 4]              ; y1
+        mov ebx, [edi + 4]              ; y2
+        cmp eax, ebx                    ; compare eax, ebx
+        jl next_all
+
+        ; assign the current front value and increment the # of points assigned a value
+
+        add dword [esi + 8], 1
+        add dword [changed], 1
+
+        next_all:
+            add esi, 20
+            dec ecx
+            cmp [count], ecx
+            jnz no_inner_correct
+            mov esi, listcxy
+        no_inner_correct:
+            cmp ecx, 0
+            jnz inner_nds_all               ; repeat until ecx is met
+    
+    add edi, 20
+    dec edx                             ; decrement edx (outer counter)
+    cmp [count], edx
+    jnz no_outer_correct
+    mov edi, listcxy
+no_outer_correct:
+    cmp edx, 0
+    jnz outer_nds_all                       ; repeat until everything is done
+
+; if no value was changed in the current iteration, jump to print
+cmp dword [changed],0
+jz post_nds_all
+
+; reinitialize values to go back through all items
+mov edx, [count]
+shl edx, 1 
+mov edi, listxy
+
+; reset values for the main loop
+mov eax, [front]
+inc eax
+mov dword [front], eax
+mov dword [changed], 0
+jmp outer_nds_all
+
+; after the non-dominated sorting, assign closest vectors
+post_nds_all:
+    ; figure out the closest ref_dir
+    mov ecx, [count]
+    shl ecx, 1 
+    mov esi, listxy
+
+    outer_ref_all:
+
+        ; initialize the bestref with the first item's slope
+        mov eax, [dasdennis]
+        mov ebx, [dasdennis + 4]
+        mov [bestref], eax
+        mov [bestref + 4], ebx
+
+        mov edx, 0                          ; prep for mult
+        mov eax, [esi + 4]                  ; move y to eax
+        push ecx
+        mov ecx, 1000000
+        mul ecx                             ; multiply y by 1000000 to evaluate pseudo-fp
+        pop ecx                             ; restore ecx
+
+        mov edx, 0                          ; prep for div
+        mov ebx, [esi]                      ; move x to ebx
+
+        div ebx                             ; eax now holds the slope of point p
+        mov edx, [refcount]             ; move the count of reference points to edx 
+        mov edi, dasdennis              ; move pointer to ref_dirs
+
+        inner_ref_all:
+
+            mov ebx, [edi]              ; move the slope of the current reference point to ebx
+            sub ebx, eax                ; subtract the ref slope from the point slope
+
+            ; get the absolute value of the slope differences
+            cmp ebx, 0
+
+            jg no_negate_all
+            neg dword ebx
+            
+            no_negate_all:
+                cmp dword ebx, [bestref]          ; compare the abs(slope) with the best current reference
+
+                jg no_replace_all               ; if the slope is greater than the current reference, no replace (minimize slope difference)
+                            
+                mov [bestref], ebx    ; replace the bestref value with the new abs(slope)
+                
+                mov ebx, [edi + 4]          ; move the new vector index to ebx
+                mov [esi + 12], ebx
+                mov [bestref + 4], ebx    ; set the vector index for the current point
+
+            no_replace_all:                 ; reset variables for inner loop
+                add edi, 12                  ; increment edi pointer for next ref
+                dec edx                     ; decrement edx
+
+                cmp edx, [count]
+                jnz no_kids_yet
+                mov edi, listcxy
+
+            no_kids_yet:
+                cmp edx, 0                  ; reset if all the refs have been cycled through
+                jnz inner_ref_all
+
+        mov edi, dasdennis          ; reset 
+        mov edx, [refcount]
+
+        ; increment outer loop
+        add esi, 20
+        dec ecx
+
+        cmp ecx, [count]
+        jnz not_them_younguns
+        mov esi, listcxy
+
+    not_them_younguns:
+        cmp ecx, 0
+        jnz outer_ref_all
+
+preprint:
+
+mov edi, listxy
 mov ebx, [count]
 
 print_loop_c:
@@ -515,7 +684,7 @@ call printf
 add esp, 4
 
 
-mov edi, listxy
+mov edi, listcxy
 mov ebx, [count]
 
 print_loop:

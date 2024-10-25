@@ -150,7 +150,16 @@ post_nds:
         mov edx, 0                          ; prep for div
         mov ebx, [esi]                      ; move x to ebx
 
+        cmp ebx, 0
+        jz replace_zero_parent
+
         div ebx                             ; eax now holds the slope of point p
+        jmp resume_process_parent
+
+    replace_zero_parent:
+        mov eax, 10000000               ; prevent a division by 0, replace with arbitrary large number
+
+    resume_process_parent:
         mov edx, [refcount]             ; move the count of reference points to edx 
         mov edi, dasdennis              ; move pointer to ref_dirs
 
@@ -603,8 +612,16 @@ post_nds_all:
 
         mov edx, 0                          ; prep for div
         mov ebx, [esi]                      ; move x to ebx
+        cmp ebx, 0
+        jz replace_zero
 
         div ebx                             ; eax now holds the slope of point p
+        jmp resume_process
+
+    replace_zero:
+        mov eax, 10000000               ; prevent a division by 0, replace with arbitrary large number
+
+    resume_process:
         mov edx, [refcount]             ; move the count of reference points to edx 
         mov edi, dasdennis              ; move pointer to ref_dirs
 
@@ -620,25 +637,20 @@ post_nds_all:
             neg dword ebx
             
             no_negate_all:
-                cmp dword ebx, [bestref]          ; compare the abs(slope) with the best current reference
+                cmp dword ebx, [bestref]    ; compare the abs(slope) with the best current reference
 
-                jg no_replace_all               ; if the slope is greater than the current reference, no replace (minimize slope difference)
+                jg no_replace_all           ; if the slope is greater than the current reference, no replace (minimize slope difference)
                             
-                mov [bestref], ebx    ; replace the bestref value with the new abs(slope)
+                mov [bestref], ebx          ; replace the bestref value with the new abs(slope)
                 
                 mov ebx, [edi + 4]          ; move the new vector index to ebx
                 mov [esi + 12], ebx
-                mov [bestref + 4], ebx    ; set the vector index for the current point
+                mov [bestref + 4], ebx      ; set the vector index for the current point
 
             no_replace_all:                 ; reset variables for inner loop
-                add edi, 12                  ; increment edi pointer for next ref
+                add edi, 12                 ; increment edi pointer for next ref
                 dec edx                     ; decrement edx
 
-                cmp edx, [count]
-                jnz no_kids_yet
-                mov edi, listcxy
-
-            no_kids_yet:
                 cmp edx, 0                  ; reset if all the refs have been cycled through
                 jnz inner_ref_all
 
@@ -656,6 +668,9 @@ post_nds_all:
     not_them_younguns:
         cmp ecx, 0
         jnz outer_ref_all
+
+; loop through parents and kids, tabulate # of represented ref dirs and save to refdirs
+; find the top #count based on pareto fronts than least represented ref dir        
 
 preprint:
 

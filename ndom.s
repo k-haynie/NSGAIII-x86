@@ -30,6 +30,7 @@ section .data
     changed dd 0
     bestref dd 0,0
     m_rate dd 1
+    gens dd 5
 
     ; preserve an output format
     fmt: db "(%b %b %b %b %b %b)", 10, 0
@@ -47,6 +48,7 @@ section .data
     fmt4: db "(%d, %d) dominates (%d, %d) on front %d", 10, 0
     line: db "------------", 10, 0
     fmtcmp: db "(%d, %d) crossed to (%d, %d)"
+    fmtgen: db "generation %d", 10, 0
 
 
 section .text
@@ -58,6 +60,8 @@ _start:
     rdtsc 
     push eax
     call srand
+
+algo_start:
 
     mov edx, [count]                        ; initialize the count in edx
     mov edi, listxy
@@ -263,14 +267,6 @@ parent_two:
     ; compare 
 
 esi_select:
-    push dword [esi + 8]
-    push dword [edi + 8]
-    push fmtd
-    call printf
-    pop eax
-    pop eax
-    pop eax
-
     ; copy the esi-point to parent one or two
     mov eax, [esi]
     mov dword [ebx], eax
@@ -291,14 +287,6 @@ esi_select:
     jmp crossover
 
 edi_select:
-    push dword [esi + 8]
-    push dword [edi + 8]
-    push fmtd
-    call printf
-    pop eax
-    pop eax
-    pop eax
-
     ; copy the edi-point to parent one or two
     mov eax, [edi]
     mov dword [ebx], eax
@@ -458,9 +446,6 @@ c2_mut:
 
 population_add:
     pop esi
-    push fmto
-    call printf
-    pop edx                     ; the pointer to the child point array
     pop edx                     ; the count of elements
 
     ; move all the points over to the child array
@@ -498,7 +483,6 @@ population_add:
 
     jmp binary_tournament
     
-
 continue:
     ; reset all the parent weightings
     mov ecx, [count]
@@ -840,6 +824,40 @@ print_loop:
     sub ebx, 1
     cmp ebx, 0
     jnz print_loop       ; loop if necessary
+
+mov edi, listxy
+mov esi, listcxy
+mov ebx, [count]
+
+zero_out_parents:
+    ; populate the stack with the front value, y, value, and x value
+    mov dword [edi + 8], 0
+    mov dword [edi + 12], 0
+    mov dword [edi + 16], 0
+
+    mov dword [esi], 0
+    mov dword [esi + 4], 0
+    mov dword [esi + 8], 0
+    mov dword [esi + 12], 0
+    mov dword [esi + 16], 0
+    add edi, 20 
+    add esi, 20
+    
+    sub ebx, 1
+    cmp ebx, 0
+    jnz zero_out_parents       ; loop if necessary
+
+mov eax, [gens]
+push eax
+push fmtgen
+call printf
+pop eax
+pop eax
+
+sub eax, 1
+mov [gens], eax
+cmp eax, 0
+jnz algo_start
 
 done_printing:          ; exit
     mov eax,1

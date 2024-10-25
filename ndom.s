@@ -23,7 +23,7 @@ section .data
     ; 2-dimenesional Das-Dennis reference directions, courtesy of pymoo
     ;dasdennis dd 0,1,0,   0.08333333,0.91666667,1,   0.16666667,0.83333333,2,   0.25,0.75,3,   0.33333333,0.66666667,4,   0.41666667,0.58333333,5,   0.5,0.5,6,   0.58333333,0.41666667,7,   0.66666667,0.33333333,8,   0.75,0.25,9,   0.83333333,0.16666667,10,   0.91666667,0.08333333,11,   1,0,12
     ; slope, id, appearance_in_gen - 6 sf
-    dasdennis dd 1000000000,0,0,  11000000,1,1,   5000000,2,2,   3000000,3,3,   2000000,4,4,   1400000,5,5,   1000000,6,6,   714258,7,7,   500000,8,8,   333333,9,9,   19999,10,10, 9090,11,11, 0,12,12
+    dasdennis dd 1000000000,0,0,  11000000,1,0,   5000000,2,0,   3000000,3,0,   2000000,4,0,   1400000,5,0,   1000000,6,0,   714258,7,0,   500000,8,0,   333333,9,0,   19999,10,0, 9090,11,0, 0,12,0
 
     refcount dd 12
     front dd 1
@@ -37,7 +37,7 @@ section .data
     fmtd: db "Pareto front comparison: (%d %d)", 10, 0
     fmtdd: db "dasdennis: (%d)", 10, 0
     fmts: db "(%d)", 10, 0
-    fmttie: db "tie, (%d %d)", 10 , 0
+    fmttie: db "(%d %d %d)", 10 , 0
     ; fmtd: db "changed: (%d %d)", 10, 0
     fmtr: db "(%d %d %d %d)", 10, 0
     fmtrd: db "(%d)", 10, 0
@@ -668,9 +668,35 @@ post_nds_all:
     not_them_younguns:
         cmp ecx, 0
         jnz outer_ref_all
+   
+mov edi, listxy
+mov ebx, [count]
+shl ebx, 1
+
+tally_parent:
+    mov eax, [edi+12]           ; move the ref dir index to eax
+    mov ecx, 12                 ; prime ecx for multiplication
+    mul ecx                     ; multiply by 4 bytes
+    mov esi, dasdennis
+    add esi, eax
+    add esi, 8
+    mov ecx, [esi]
+    add ecx, 1
+    mov [esi], ecx
+
+    add edi, 20
+    dec ebx
+    cmp ebx, [count]
+    jnz avoid_kids
+    mov edi, listcxy
+
+avoid_kids:
+    cmp ebx, 0
+    jnz tally_parent
 
 ; loop through parents and kids, tabulate # of represented ref dirs and save to refdirs
-; find the top #count based on pareto fronts than least represented ref dir        
+; find the top #count based on pareto fronts than least represented ref dir     
+
 
 preprint:
 
@@ -687,6 +713,7 @@ print_loop_c:
     push fmto            ; push the format
     call printf         ; print nicely
 
+                        ; eax now holds the slope of point p
     add esp, 24          ; increment the stack pointer
     add edi, 20 
     

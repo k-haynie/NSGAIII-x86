@@ -87,12 +87,14 @@ _start:
             mov ebx, [edi]                  ; x2
             cmp eax, ebx                    ; compare eax and ebx
             jl next                         ; if eax < ebx, no swap is needed - jump ahead
+            je next                         ; make sure same vals are assigned to the same front
 
             ; compare y:
             mov eax, [esi + 4]              ; y1
             mov ebx, [edi + 4]              ; y2
             cmp eax, ebx                    ; compare eax, ebx
             jl next
+            je next
 
             ; assign the current front value and increment the # of points assigned a value
 
@@ -541,12 +543,14 @@ outer_nds_all:
         mov ebx, [edi]                  ; x2
         cmp eax, ebx                    ; compare eax and ebx
         jl next_all                         ; if eax < ebx, no swap is needed - jump ahead
+        je next_all
 
         ; compare y:
         mov eax, [esi + 4]              ; y1
         mov ebx, [edi + 4]              ; y2
         cmp eax, ebx                    ; compare eax, ebx
         jl next_all
+        je next_all
 
         ; assign the current front value and increment the # of points assigned a value
 
@@ -714,19 +718,6 @@ bubble_sort:
             mov eax, [esi + 8]          ; move Pareto value to eax
             mov ebx, [edi + 8]         ; move Pareto value of next to ebx
 
-            push eax
-            push ebx            
-            push edx
-            push ecx
-            push fmtrd
-            call printf
-            pop ecx
-            pop ecx
-            pop edx
-            pop ebx
-            pop eax
-
-
             cmp eax, ebx
             jl no_swap
 
@@ -735,25 +726,33 @@ bubble_sort:
 
         ; if they are equal, compare the frequency of their values and take the lesser one
         comp_refs:
-            ; mov eax, [edi + 12]         ; move the ref ID to eax
-            ; mov ebx, 12                 
-            ; mul ebx
-            ; mov ebx, dasdennis
-            ; add ebx, eax
-            ; add ebx, 8                  ; finish calculating the pointer to freq
-            ; push dword [ebx]            ; push to stack 
+            mov eax, [edi + 12]         ; move the ref ID to eax
+            mov ebx, 12
 
-            ; mov eax, [esi + 12]         ; do the same for second child
-            ; mov ebx, 12
-            ; mul ebx
-            ; mov ebx, dasdennis
-            ; add ebx, eax
-            ; add ebx, 8
-            ; mov eax, [ebx]
+            push edx             
+            mul ebx
+            pop edx
+            
+            mov ebx, dasdennis
+            add ebx, eax
+            add ebx, 8                  ; finish calculating the pointer to freq
+            push dword [ebx]            ; push to stack 
 
-            ; pop ebx                     ; restore from earlier
-            ; cmp eax, ebx
-            ; jl no_swap
+            mov eax, [esi + 12]         ; do the same for second child
+            mov ebx, 12
+
+            push edx
+            mul ebx
+            pop edx
+
+            mov ebx, dasdennis
+            add ebx, eax
+            add ebx, 8
+            mov eax, [ebx]
+
+            pop ebx                     ; restore from earlier
+            cmp eax, ebx
+            jl no_swap
 
         swap:
             ; swap out each of the design point values

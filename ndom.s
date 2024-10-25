@@ -40,7 +40,7 @@ section .data
     fmttie: db "(%d %d %d)", 10 , 0
     ; fmtd: db "changed: (%d %d)", 10, 0
     fmtr: db "(%d %d %d %d)", 10, 0
-    fmtrd: db "(%d)", 10, 0
+    fmtrd: db "(%d %d)", 10, 0
     fmtb: db "(modified: %b original: %b mask: %b)", 10, 0
 
     fmt3: db "1 (%b) 2 (%b)", 10, 0
@@ -697,6 +697,102 @@ avoid_kids:
 ; loop through parents and kids, tabulate # of represented ref dirs and save to refdirs
 ; find the top #count based on pareto fronts than least represented ref dir     
 
+bubble_sort:
+    mov edx, [count]
+    shl edx, 1
+    sub edx, 1
+
+    outer:
+        mov ecx, [count]
+        shl ecx, 1
+        sub ecx, 1
+        mov esi, listxy
+        mov edi, listxy
+        add edi, 20
+
+        inner:
+            mov eax, [esi + 8]          ; move Pareto value to eax
+            mov ebx, [edi + 8]         ; move Pareto value of next to ebx
+
+            push eax
+            push ebx            
+            push edx
+            push ecx
+            push fmtrd
+            call printf
+            pop ecx
+            pop ecx
+            pop edx
+            pop ebx
+            pop eax
+
+
+            cmp eax, ebx
+            jl no_swap
+
+            cmp eax, ebx
+            jg swap
+
+        ; if they are equal, compare the frequency of their values and take the lesser one
+        comp_refs:
+            ; mov eax, [edi + 12]         ; move the ref ID to eax
+            ; mov ebx, 12                 
+            ; mul ebx
+            ; mov ebx, dasdennis
+            ; add ebx, eax
+            ; add ebx, 8                  ; finish calculating the pointer to freq
+            ; push dword [ebx]            ; push to stack 
+
+            ; mov eax, [esi + 12]         ; do the same for second child
+            ; mov ebx, 12
+            ; mul ebx
+            ; mov ebx, dasdennis
+            ; add ebx, eax
+            ; add ebx, 8
+            ; mov eax, [ebx]
+
+            ; pop ebx                     ; restore from earlier
+            ; cmp eax, ebx
+            ; jl no_swap
+
+        swap:
+            ; swap out each of the design point values
+            mov eax, [esi]
+            mov ebx, [edi]
+            mov [edi], eax
+            mov [esi], ebx
+
+            mov eax, [esi + 4]
+            mov ebx, [edi + 4]
+            mov [edi + 4], eax
+            mov [esi + 4], ebx
+            
+            mov eax, [esi + 8]
+            mov ebx, [edi + 8]
+            mov [edi + 8], eax
+            mov [esi + 8], ebx
+
+            mov eax, [esi + 12]
+            mov ebx, [edi + 12]
+            mov [edi + 12], eax
+            mov [esi + 12], ebx
+
+            mov dword [esi + 16], 0
+            mov dword [edi + 16], 0
+
+        no_swap:
+            add esi, 20
+            add edi, 20
+            
+        no_set_kids_edi:
+            dec ecx
+            cmp ecx, 0
+            jnz inner
+
+    back_to_outer:
+        dec edx
+        cmp edx, 0
+        jnz outer
 
 preprint:
 

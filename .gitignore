@@ -1,2 +1,5 @@
-*
-![.(s|txt|o)]
+.*
+screenshots
+*.pdf
+*.odt
+*.txt

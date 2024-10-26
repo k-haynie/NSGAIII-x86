@@ -4,9 +4,30 @@ extern srand
 
 ; LIFESAVERS
 ; https://en.wikibooks.org/wiki/X86_Assembly/X86_Architecture
-; https://kobzol.github.io/davis/
 ; https://stats.stackexchange.com/questions/581426/how-pairs-of-actual-parents-are-formed-from-the-mating-pool-in-nsga-ii
 
+; MORE RESOURCES
+
+; Assembly visulizer
+; https://kobzol.github.io/davis/
+
+; basis for bubble sort
+; https://github.com/mish24/Assembly-step-by-step/blob/master/Bubble-sort.asm
+
+; Sample points for sorting
+; p1 -  3, 6
+; p2 -  7, 4
+; p3 -  4, 8
+; p4 -  9, 7
+; p5 -  8, 5
+; p6 -  3, 3
+; p7 - 12, 1
+; p8 -  5, 2
+
+; Rank 1 - p6, p7, p8
+; Rank 2 - p1, p2
+; Rank 3 - p3, p5
+; Rank 4 - p4
 
 section .data
     ; pad of 6 0's to accommodate no floats
@@ -21,33 +42,32 @@ section .data
     children dd 0,0,0,0,-1,    0,0,0,0,-1
 
     ; 2-dimenesional Das-Dennis reference directions, courtesy of pymoo
-    ;dasdennis dd 0,1,0,   0.08333333,0.91666667,1,   0.16666667,0.83333333,2,   0.25,0.75,3,   0.33333333,0.66666667,4,   0.41666667,0.58333333,5,   0.5,0.5,6,   0.58333333,0.41666667,7,   0.66666667,0.33333333,8,   0.75,0.25,9,   0.83333333,0.16666667,10,   0.91666667,0.08333333,11,   1,0,12
-    ; slope, id, appearance_in_gen - 6 sf
+    ; dasdennis dd 0,1,0,   0.08333333,0.91666667,1,   0.16666667,0.83333333,2,   0.25,0.75,3,   0.33333333,0.66666667,4,   0.41666667,0.58333333,5,   0.5,0.5,6,   0.58333333,0.41666667,7,   0.66666667,0.33333333,8,   0.75,0.25,9,   0.83333333,0.16666667,10,   0.91666667,0.08333333,11,   1,0,12
+    
+    ; format: slope, id, # represented
     dasdennis dd 1000000000,0,0,  11000000,1,0,   5000000,2,0,   3000000,3,0,   2000000,4,0,   1400000,5,0,   1000000,6,0,   714258,7,0,   500000,8,0,   333333,9,0,   19999,10,0, 9090,11,0, 0,12,0
 
+    ; # of reference directions
     refcount dd 12
+
+    ; current front value in iteration
     front dd 1
+
+    ; how many fronts were assigned in an iteration
     changed dd 0
+
+    ; the currently-evaluated closest reference direction
     bestref dd 0,0
+
+    ; the mutation rate %
     m_rate dd 1
+
+    ; the number of generations
     gens dd 5
 
     ; preserve an output format
-    fmt: db "(%b %b %b %b %b %b)", 10, 0
     fmto: db "(%d, %d, %d, %d, %d)", 10, 0
-    fmtd: db "Pareto front comparison: (%d %d)", 10, 0
-    fmtdd: db "dasdennis: (%d)", 10, 0
-    fmts: db "(%d)", 10, 0
-    fmttie: db "(%d %d %d)", 10 , 0
-    ; fmtd: db "changed: (%d %d)", 10, 0
-    fmtr: db "(%d %d %d %d)", 10, 0
-    fmtrd: db "(%d %d)", 10, 0
-    fmtb: db "(modified: %b original: %b mask: %b)", 10, 0
-
-    fmt3: db "1 (%b) 2 (%b)", 10, 0
-    fmt4: db "(%d, %d) dominates (%d, %d) on front %d", 10, 0
     line: db "------------", 10, 0
-    fmtcmp: db "(%d, %d) crossed to (%d, %d)"
     fmtgen: db "generation %d", 10, 0
 
 
@@ -205,6 +225,26 @@ post_nds:
         add esi, 20
         dec ecx
         jnz outer_ref
+
+; add up the reference direction representation
+mov edi, listxy
+mov ebx, [count]
+
+tally_refs:
+    mov eax, [edi+12]           ; move the ref dir index to eax
+    mov ecx, 12                 ; prime ecx for multiplication
+    mul ecx                     ; multiply by 4 bytes
+    mov esi, dasdennis
+    add esi, eax
+    add esi, 8
+    mov ecx, [esi]
+    add ecx, 1
+    mov [esi], ecx
+
+    add edi, 20
+    dec ebx
+    cmp ebx, 0
+    jnz tally_refs
 
 ; initialize the randomness generator
 rdtsc 
@@ -863,28 +903,3 @@ done_printing:          ; exit
     mov eax,1
     xor ebx, ebx
     int 0x80
-
-
-; https://kobzol.github.io/davis/
-; ; https://github.com/mish24/Assembly-step-by-step/blob/master/Bubble-sort.asm
-
-
-; .data
-; ArrX DW 3, 7, 4, 9, 8, 3, 12, 5
-; ArrY DW 6, 4, 8, 7, 5, 3, 1, 2
-
-
-; Sample points for sorting
-; p1 -  3, 6
-; p2 -  7, 4
-; p3 -  4, 8
-; p4 -  9, 7
-; p5 -  8, 5
-; p6 -  3, 3
-; p7 - 12, 1
-; p8 -  5, 2
-
-; Rank 1 - p6, p7, p8
-; Rank 2 - p1, p2
-; Rank 3 - p3, p5
-; Rank 4 - p4

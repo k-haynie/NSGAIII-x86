@@ -1,1 +1,1 @@
-nasm -f elf32 ndom.s -o ndom.o && gcc -nostartfiles -no-pie -m32 -o ndom ndom.o && ./ndom
+nasm -f elf32 nsgaiii.s -o nsgaiii.o && gcc -nostartfiles -no-pie -m32 -o nsgaiii nsgaiii.o && ./nsgaiii

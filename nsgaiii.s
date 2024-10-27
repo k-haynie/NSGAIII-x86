@@ -30,12 +30,10 @@ extern srand
 ; Rank 4 - p4
 
 section .data
-    ; pad of 6 0's to accommodate no floats
     ; declare a list of n #  x-y double dword value pairs to be sorted
-    count dd 8
-    childcount dd 8
-    listxy dd 3,6,0,0,0,   4,8,0,0,0,  12,1,0,0,0,    9,7,0,0,0,    8,5,0,0,0,    3,3,0,0,0,    7,2,0,0,0,   7,4,0,0,0,
-    listcxy dd 0,0,0,0,0,   0,0,0,0,0,  0,0,0,0,0,    0,0,0,0,0,    0,0,0,0,0,    0,0,0,0,0,    0,0,0,0,0,   0,0,0,0,0,  
+    count dd 8; 16
+    listxy dd 3,6,0,0,0,   4,8,0,0,0,  12,1,0,0,0,    9,7,0,0,0,    8,5,0,0,0,    3,3,0,0,0,    7,2,0,0,0,   7,4,0,0,0, ; 4,2,0,0,0,   3,7,0,0,0,  14,3,0,0,0,    15,5,0,0,0,    18,9,0,0,0,    19,2,0,0,0,    45,0,0,0,0,   1,4,0,0,0,
+    listcxy dd 0,0,0,0,0,   0,0,0,0,0,  0,0,0,0,0,    0,0,0,0,0,    0,0,0,0,0,    0,0,0,0,0,    0,0,0,0,0,   0,0,0,0,0, ; 0,0,0,0,0,   0,0,0,0,0,  0,0,0,0,0,    0,0,0,0,0,    0,0,0,0,0,    0,0,0,0,0,    0,0,0,0,0,   0,0,0,0,0,  
 
     ; the last negative one means non-initialized
     parents dd 0,0,0,0,-1,    0,0,0,0,-1
@@ -697,14 +695,13 @@ post_nds_all:
         cmp ecx, 0
         jnz outer_ref_all
    
-mov edi, listxy
+mov edi, listcxy
 mov ebx, [count]
-shl ebx, 1
 
 tally_parent:
     mov eax, [edi+12]           ; move the ref dir index to eax
     mov ecx, 12                 ; prime ecx for multiplication
-    mul ecx                     ; multiply by 4 bytes
+    mul ecx                     ; multiply by 12 bytes
     mov esi, dasdennis
     add esi, eax
     add esi, 8
@@ -714,11 +711,6 @@ tally_parent:
 
     add edi, 20
     dec ebx
-    cmp ebx, [count]
-    jnz avoid_kids
-    mov edi, listcxy
-
-avoid_kids:
     cmp ebx, 0
     jnz tally_parent
 
@@ -886,6 +878,15 @@ zero_out_parents:
     sub ebx, 1
     cmp ebx, 0
     jnz zero_out_parents       ; loop if necessary
+
+mov edi, dasdennis
+mov ebx, [refcount]
+
+zero_refs:
+    mov dword [edi + 8], 0      ; zero out the ref counts
+    dec ebx
+    cmp ebx, 0
+    jnz zero_refs       ; loop if necessary
 
 mov eax, [gens]
 push eax
